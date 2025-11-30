@@ -4,8 +4,6 @@
 <tr>
 <td width="120">
 
-<!-- TODO: Add logo -->
-
 ![Logo](images/logo.webp)
 
 </td>
@@ -25,7 +23,7 @@ Your notes never leave your device. No accounts. No tracking. No cloud.
 
 </div>
 
-![SvelteMark Screenshot](./screenshots/screenshot.png)
+![SvelteMark Screenshot](images/screenshot.webp)
 
 <!-- TODO: Add actual screenshot -->
 
@@ -75,21 +73,16 @@ Your notes never leave your device. No accounts. No tracking. No cloud.
 
 ### Main Editor View
 
-![Editor View](./screenshots/editor.png)
+![Editor View](images/screenshot.webp)
 
-<!-- TODO: Add editor screenshot -->
 
 ### Preview Mode
 
-![Preview Mode](./screenshots/preview.png)
+![Preview Mode](images/preview.webp)
 
-<!-- TODO: Add preview screenshot -->
 
-### File Explorer
 
-![File Explorer](./screenshots/file-explorer.png)
 
-<!-- TODO: Add file explorer screenshot -->
 
 ## Getting Started
 
