@@ -16,10 +16,11 @@
 		value?: string;
 		onchange?: (value: string) => void;
 		onscroll?: (scrollInfo: { scrollTop: number; scrollHeight: number; clientHeight: number }) => void;
+		ondimensionschange?: () => void; // Called when section dimensions are measured/updated
 		class?: string;
 	}
 
-	let { value = '', onchange, onscroll, class: className = '' }: Props = $props();
+	let { value = '', onchange, onscroll, ondimensionschange, class: className = '' }: Props = $props();
 
 	let editorContainer: HTMLDivElement;
 	let view: EditorView | null = null;
@@ -333,6 +334,37 @@
 	}
 
 	onMount(() => {
+		// Set up ResizeObserver to detect size changes (word wrap, container resize, etc.)
+		let resizeTimeout: ReturnType<typeof setTimeout> | null = null;
+		let resizeFrameId: number | null = null;
+		const resizeObserver = new ResizeObserver(() => {
+			// Cancel pending measurements
+			if (resizeTimeout) clearTimeout(resizeTimeout);
+			if (resizeFrameId) cancelAnimationFrame(resizeFrameId);
+			
+			// Debounce re-measurement to batch multiple resize events
+			resizeTimeout = setTimeout(() => {
+				// Re-measure sections when size changes
+				// Use double requestAnimationFrame to ensure layout is complete
+				resizeFrameId = requestAnimationFrame(() => {
+					resizeFrameId = requestAnimationFrame(() => {
+						if (editorSections.length > 0 && view) {
+							const sections = editorSections.map(s => ({
+								startLine: s.startLine,
+								endLine: s.endLine
+							}));
+							measureSections(sections);
+						}
+						resizeFrameId = null;
+					});
+				});
+			}, 50);
+		});
+
+		if (editorContainer) {
+			resizeObserver.observe(editorContainer);
+		}
+
 		const state = EditorState.create({
 			doc: value,
 			extensions: createExtensions()
@@ -342,6 +374,13 @@
 			state,
 			parent: editorContainer
 		});
+
+		return () => {
+			view?.destroy();
+			resizeObserver.disconnect();
+			if (resizeTimeout) clearTimeout(resizeTimeout);
+			if (resizeFrameId) cancelAnimationFrame(resizeFrameId);
+		};
 	});
 
 	onDestroy(() => {
@@ -369,6 +408,19 @@
 			view.dispatch({
 				effects: wordWrapCompartment.reconfigure(appState.wordWrap ? EditorView.lineWrapping : [])
 			});
+			// Re-measure sections after word wrap changes (affects line heights)
+			// Use multiple animation frames to ensure layout has fully settled
+			requestAnimationFrame(() => {
+				requestAnimationFrame(() => {
+					if (editorSections.length > 0) {
+						const sections = editorSections.map(s => ({
+							startLine: s.startLine,
+							endLine: s.endLine
+						}));
+						measureSections(sections);
+					}
+				});
+			});
 		}
 	});
 
@@ -386,9 +438,10 @@
 	export function measureSections(sections: Array<{ startLine: number; endLine: number }>): EditorSectionInfo[] {
 		if (!view) return [];
 		
-		const scroller = view.scrollDOM;
 		const newSections: EditorSectionInfo[] = [];
 		const totalLines = view.state.doc.lines;
+		const contentDOM = view.contentDOM;
+		const scrollDOM = view.scrollDOM;
 		
 		for (const section of sections) {
 			// Get the DOM positions for the start and end lines
@@ -399,15 +452,82 @@
 			const startLineObj = view.state.doc.line(startLine);
 			const endLineObj = view.state.doc.line(endLine);
 			
-			// Get pixel offsets using lineBlockAt
-			// lineBlockAt returns the visual block which correctly handles word wrap
-			const startBlock = view.lineBlockAt(startLineObj.from);
-			const endBlock = view.lineBlockAt(endLineObj.to);
+			// Use coordsAtPos to get actual DOM coordinates which account for word wrap
+			// This gives us the true visual position of wrapped text
+			const startPos = startLineObj.from;
+			const endPos = endLineObj.to;
 			
-			// For wrapped lines, the block height includes all wrapped parts
-			const startOffset = startBlock.top;
-			// Use the bottom of the end block to capture full wrapped content
-			const endOffset = endBlock.bottom;
+			// Get the visual coordinates - this accounts for ALL wrapping
+			const startCoords = view.coordsAtPos(startPos, 1); // 1 = get top of line
+			const endCoords = view.coordsAtPos(endPos, -1); // -1 = get bottom of line
+			
+			let startOffset: number;
+			let endOffset: number;
+			
+			if (startCoords && endCoords) {
+				// Convert viewport coordinates to scroll-relative coordinates
+				const scrollTop = scrollDOM.scrollTop;
+				const contentRect = contentDOM.getBoundingClientRect();
+				const scrollRect = scrollDOM.getBoundingClientRect();
+				
+				// Calculate offset relative to the scroll container's content
+				startOffset = startCoords.top - scrollRect.top + scrollTop;
+				endOffset = endCoords.bottom - scrollRect.top + scrollTop;
+			} else {
+				// Fallback to lineBlockAt if coordsAtPos fails
+				const startBlock = view.lineBlockAt(startPos);
+				const endBlock = view.lineBlockAt(endPos);
+				startOffset = startBlock.top;
+				endOffset = endBlock.bottom;
+			}
+			
+			// For multi-line sections with word wrap, we need to check all lines
+			// to ensure we capture the full visual extent
+			if (startLine < endLine && startCoords && endCoords) {
+				let minTop = startOffset;
+				let maxBottom = endOffset;
+				
+				// Check a sample of lines to find true bounds (checking every line is expensive)
+				const linesToCheck = Math.min(endLine - startLine + 1, 30);
+				const step = Math.max(1, Math.floor((endLine - startLine) / linesToCheck));
+				
+				for (let lineNum = startLine; lineNum <= endLine; lineNum += step) {
+					const lineObj = view.state.doc.line(lineNum);
+					const lineStart = view.coordsAtPos(lineObj.from, 1);
+					const lineEnd = view.coordsAtPos(lineObj.to, -1);
+					
+					if (lineStart && lineEnd) {
+						const scrollTop = scrollDOM.scrollTop;
+						const scrollRect = scrollDOM.getBoundingClientRect();
+						
+						const lineTop = lineStart.top - scrollRect.top + scrollTop;
+						const lineBottom = lineEnd.bottom - scrollRect.top + scrollTop;
+						
+						minTop = Math.min(minTop, lineTop);
+						maxBottom = Math.max(maxBottom, lineBottom);
+					}
+				}
+				
+				// Always check the last line
+				if (endLine % step !== 0) {
+					const lastLineStart = view.coordsAtPos(endLineObj.from, 1);
+					const lastLineEnd = view.coordsAtPos(endLineObj.to, -1);
+					
+					if (lastLineStart && lastLineEnd) {
+						const scrollTop = scrollDOM.scrollTop;
+						const scrollRect = scrollDOM.getBoundingClientRect();
+						
+						const lastTop = lastLineStart.top - scrollRect.top + scrollTop;
+						const lastBottom = lastLineEnd.bottom - scrollRect.top + scrollTop;
+						
+						minTop = Math.min(minTop, lastTop);
+						maxBottom = Math.max(maxBottom, lastBottom);
+					}
+				}
+				
+				startOffset = minTop;
+				endOffset = maxBottom;
+			}
 			
 			// Ensure valid dimensions (handle edge cases)
 			const height = Math.max(0, endOffset - startOffset);
@@ -424,6 +544,10 @@
 		}
 		
 		editorSections = newSections;
+		
+		// Notify parent that dimensions have been updated
+		ondimensionschange?.();
+		
 		return newSections;
 	}
 
@@ -490,7 +614,13 @@
 	let animationTargetScroll: number = 0;
 	let lastTargetScroll: number = 0;
 	const ANIMATION_DURATION = 50; // ms - fast for responsive feel
-	const SCROLL_THRESHOLD = 5; // Minimum scroll difference to trigger animation
+	
+	// Dynamic scroll threshold based on viewport size (0.5% of client height, min 2px, max 10px)
+	function getScrollThreshold(): number {
+		if (!view) return 5;
+		const clientHeight = view.scrollDOM.clientHeight;
+		return Math.max(2, Math.min(10, clientHeight * 0.005));
+	}
 
 	// Smooth easing function (ease-out-quad for natural deceleration)
 	function easeOutQuad(t: number): number {
@@ -501,15 +631,16 @@
 	function animateScrollTo(targetScroll: number) {
 		if (!view) return;
 		const scroller = view.scrollDOM;
+		const threshold = getScrollThreshold();
 
 		// Skip if target is very close to current position (prevents micro-jitter)
 		const currentScroll = scroller.scrollTop;
-		if (Math.abs(targetScroll - currentScroll) < SCROLL_THRESHOLD) {
+		if (Math.abs(targetScroll - currentScroll) < threshold) {
 			return;
 		}
 
 		// If we're already animating toward a similar target, don't restart
-		if (animationFrameId !== null && Math.abs(targetScroll - lastTargetScroll) < SCROLL_THRESHOLD) {
+		if (animationFrameId !== null && Math.abs(targetScroll - lastTargetScroll) < threshold) {
 			return;
 		}
 

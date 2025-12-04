@@ -238,16 +238,40 @@
 		// Access wordWrap to create dependency
 		const _wordWrap = appState.wordWrap;
 		
-		// Delay measurement to allow editor to update its layout
-		setTimeout(() => {
-			syncSectionDimensions();
-		}, 100);
+		// Use animation frames to allow editor to update its layout
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => {
+				requestAnimationFrame(() => {
+					syncSectionDimensions();
+				});
+			});
+		});
+	});
+
+	// Re-measure sections when sidebar or view mode changes (affects editor width)
+	$effect(() => {
+		// Create dependencies on layout changes that affect width
+		const _showDesktopSidebar = showDesktopSidebar;
+		const _viewOnlyMode = appState.viewOnlyMode;
+		
+		// Skip initial run
+		if (!editorRef || !previewRef) return;
+		
+		// Use animation frames to allow layout to settle
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => {
+				requestAnimationFrame(() => {
+					syncSectionDimensions();
+				});
+			});
+		});
 	});
 
 	// Track which pane initiated the scroll to prevent feedback loops
 	let scrollSource: 'editor' | 'preview' | null = null;
 	let scrollSourceTimeout: ReturnType<typeof setTimeout> | null = null;
 	let measureSectionsTimeout: ReturnType<typeof setTimeout> | null = null;
+	let isResizingLayout = $derived(isResizingSidebar || isResizingEditor || isResizingTOC);
 
 	function handleEditorChange(content: string) {
 		appState.updateBuffer(content);
@@ -281,7 +305,13 @@
 	// Track last scroll positions to avoid micro-updates
 	let lastEditorScrollTop = 0;
 	let lastPreviewScrollTop = 0;
-	const SCROLL_THRESHOLD = 0.5; // Minimum pixels to trigger sync
+	
+	// Dynamic scroll threshold based on viewport (0.05% of client height, min 0.5px, max 2px)
+	function getScrollSyncThreshold(): number {
+		const editorDims = editorRef?.getScrollDimensions?.();
+		if (!editorDims) return 0.5;
+		return Math.max(0.5, Math.min(2, editorDims.clientHeight * 0.0005));
+	}
 
 	// Section descriptor linking editor and preview dimensions
 	interface SectionDesc {
@@ -473,9 +503,11 @@
 	function handleEditorScroll(scrollInfo: { scrollTop: number; scrollHeight: number; clientHeight: number }) {
 		if (!appState.syncScrollEnabled) return;
 		if (scrollSource === 'preview') return;
+		if (isResizingLayout) return; // Don't sync during resize
 		
 		// Skip micro-updates
-		if (Math.abs(scrollInfo.scrollTop - lastEditorScrollTop) < SCROLL_THRESHOLD) return;
+		const threshold = getScrollSyncThreshold();
+		if (Math.abs(scrollInfo.scrollTop - lastEditorScrollTop) < threshold) return;
 		lastEditorScrollTop = scrollInfo.scrollTop;
 		
 		// Mark editor as scroll source
@@ -499,9 +531,11 @@
 	function handlePreviewScroll(scrollInfo: { scrollTop: number; scrollHeight: number; clientHeight: number }) {
 		if (!appState.syncScrollEnabled) return;
 		if (scrollSource === 'editor') return;
+		if (isResizingLayout) return; // Don't sync during resize
 		
 		// Skip micro-updates
-		if (Math.abs(scrollInfo.scrollTop - lastPreviewScrollTop) < SCROLL_THRESHOLD) return;
+		const threshold = getScrollSyncThreshold();
+		if (Math.abs(scrollInfo.scrollTop - lastPreviewScrollTop) < threshold) return;
 		lastPreviewScrollTop = scrollInfo.scrollTop;
 		
 		// Mark preview as scroll source
@@ -750,7 +784,7 @@
 	// Handle mouse up to stop resizing
 	function handleResizeEnd() {
 		if (isResizingSidebar || isResizingEditor || isResizingTOC) {
-			const wasResizingEditor = isResizingEditor;
+			const needsRemeasure = isResizingSidebar || isResizingEditor;
 			isResizingSidebar = false;
 			isResizingEditor = false;
 			isResizingTOC = false;
@@ -758,11 +792,16 @@
 			document.body.style.userSelect = '';
 			saveLayoutState();
 			
-			// Re-measure sections after editor pane resize (affects wrapped text)
-			if (wasResizingEditor) {
-				setTimeout(() => {
-					syncSectionDimensions();
-				}, 100);
+			// Re-measure sections after resize (affects wrapped text width)
+			if (needsRemeasure) {
+				// Use multiple animation frames to ensure layout has settled
+				requestAnimationFrame(() => {
+					requestAnimationFrame(() => {
+						requestAnimationFrame(() => {
+							syncSectionDimensions();
+						});
+					});
+				});
 			}
 		}
 	}
@@ -908,6 +947,7 @@
 									value={appState.buffer}
 									onchange={handleEditorChange}
 									onscroll={handleEditorScroll}
+									ondimensionschange={syncSectionDimensions}
 								/>
 							</div>
 						{/if}

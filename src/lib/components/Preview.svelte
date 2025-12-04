@@ -382,7 +382,13 @@
 	let animationTargetScroll: number = 0;
 	let lastTargetScroll: number = 0;
 	const ANIMATION_DURATION = 50; // ms - fast for responsive feel
-	const SCROLL_THRESHOLD = 5; // Minimum scroll difference to trigger animation
+	
+	// Dynamic scroll threshold based on viewport size (0.5% of client height, min 2px, max 10px)
+	function getScrollThreshold(): number {
+		if (!previewContainer) return 5;
+		const clientHeight = previewContainer.clientHeight;
+		return Math.max(2, Math.min(10, clientHeight * 0.005));
+	}
 
 	// Smooth easing function (ease-out-quad for natural deceleration)
 	function easeOutQuad(t: number): number {
@@ -392,15 +398,16 @@
 	// Animate scroll to target position
 	function animateScrollTo(targetScroll: number) {
 		if (!previewContainer) return;
+		const threshold = getScrollThreshold();
 
 		// Skip if target is very close to current position (prevents micro-jitter)
 		const currentScroll = previewContainer.scrollTop;
-		if (Math.abs(targetScroll - currentScroll) < SCROLL_THRESHOLD) {
+		if (Math.abs(targetScroll - currentScroll) < threshold) {
 			return;
 		}
 
 		// If we're already animating toward a similar target, don't restart
-		if (animationFrameId !== null && Math.abs(targetScroll - lastTargetScroll) < SCROLL_THRESHOLD) {
+		if (animationFrameId !== null && Math.abs(targetScroll - lastTargetScroll) < threshold) {
 			return;
 		}
 
