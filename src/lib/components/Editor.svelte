@@ -388,21 +388,29 @@
 		
 		const scroller = view.scrollDOM;
 		const newSections: EditorSectionInfo[] = [];
+		const totalLines = view.state.doc.lines;
 		
 		for (const section of sections) {
 			// Get the DOM positions for the start and end lines
-			const startLine = Math.max(1, Math.min(section.startLine, view.state.doc.lines));
-			const endLine = Math.max(1, Math.min(section.endLine, view.state.doc.lines));
+			// Clamp to valid line range
+			const startLine = Math.max(1, Math.min(section.startLine, totalLines));
+			const endLine = Math.max(1, Math.min(section.endLine, totalLines));
 			
 			const startLineObj = view.state.doc.line(startLine);
 			const endLineObj = view.state.doc.line(endLine);
 			
 			// Get pixel offsets using lineBlockAt
+			// lineBlockAt returns the visual block which correctly handles word wrap
 			const startBlock = view.lineBlockAt(startLineObj.from);
 			const endBlock = view.lineBlockAt(endLineObj.to);
 			
+			// For wrapped lines, the block height includes all wrapped parts
 			const startOffset = startBlock.top;
+			// Use the bottom of the end block to capture full wrapped content
 			const endOffset = endBlock.bottom;
+			
+			// Ensure valid dimensions (handle edge cases)
+			const height = Math.max(0, endOffset - startOffset);
 			
 			newSections.push({
 				startLine,
@@ -410,7 +418,7 @@
 				editorDimension: {
 					startOffset,
 					endOffset,
-					height: endOffset - startOffset
+					height
 				}
 			});
 		}

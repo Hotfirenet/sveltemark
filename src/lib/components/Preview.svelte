@@ -186,26 +186,47 @@
 		blocks.forEach((block, index) => {
 			const element = blockElements[index] as HTMLElement;
 			if (element) {
-				// For display:contents elements, we need to measure their children
-				const firstChild = element.firstElementChild as HTMLElement;
-				const lastChild = element.lastElementChild as HTMLElement;
+				// For display:contents elements, we need to measure ALL their children
+				// to get accurate bounding box including wrapped text
+				const children = element.children;
 				
-				let startOffset = 0;
+				let startOffset = Infinity;
 				let endOffset = 0;
 				
-				if (firstChild && lastChild) {
-					// Use getBoundingClientRect for accurate positions including margins
-					const firstRect = firstChild.getBoundingClientRect();
-					const lastRect = lastChild.getBoundingClientRect();
+				if (children.length > 0) {
+					// Iterate through all children to find true bounds
+					// This handles wrapped text and varying element heights
+					for (let i = 0; i < children.length; i++) {
+						const child = children[i] as HTMLElement;
+						const rect = child.getBoundingClientRect();
+						
+						// Convert to scroll-relative positions
+						const childTop = rect.top - containerRect.top + scrollTop;
+						const childBottom = rect.bottom - containerRect.top + scrollTop;
+						
+						startOffset = Math.min(startOffset, childTop);
+						endOffset = Math.max(endOffset, childBottom);
+					}
 					
-					// Convert to scroll-relative positions
-					startOffset = firstRect.top - containerRect.top + scrollTop;
-					endOffset = lastRect.bottom - containerRect.top + scrollTop;
+					// Handle case where startOffset is still Infinity
+					if (startOffset === Infinity) {
+						startOffset = 0;
+					}
 				} else if (element.offsetHeight > 0) {
 					// Fallback for non-contents elements
 					const rect = element.getBoundingClientRect();
 					startOffset = rect.top - containerRect.top + scrollTop;
 					endOffset = rect.bottom - containerRect.top + scrollTop;
+				} else {
+					// Empty block - use previous section's end if available
+					if (newSectionInfoList.length > 0) {
+						const prevSection = newSectionInfoList[newSectionInfoList.length - 1];
+						startOffset = prevSection.previewDimension.endOffset;
+						endOffset = startOffset;
+					} else {
+						startOffset = 0;
+						endOffset = 0;
+					}
 				}
 
 				newSectionInfoList.push({
@@ -213,7 +234,7 @@
 					previewDimension: {
 						startOffset,
 						endOffset,
-						height: endOffset - startOffset
+						height: Math.max(0, endOffset - startOffset)
 					}
 				});
 			}

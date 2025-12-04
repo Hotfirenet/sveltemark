@@ -153,7 +153,22 @@
 		};
 		checkMobile();
 		window.addEventListener('resize', checkMobile);
-		return () => window.removeEventListener('resize', checkMobile);
+		
+		// Re-measure sections on window resize (affects wrapped text)
+		let resizeTimeout: ReturnType<typeof setTimeout> | null = null;
+		const handleResize = () => {
+			if (resizeTimeout) clearTimeout(resizeTimeout);
+			resizeTimeout = setTimeout(() => {
+				syncSectionDimensions();
+			}, 200);
+		};
+		window.addEventListener('resize', handleResize);
+		
+		return () => {
+			window.removeEventListener('resize', checkMobile);
+			window.removeEventListener('resize', handleResize);
+			if (resizeTimeout) clearTimeout(resizeTimeout);
+		};
 	});
 
 	// Resizable pane state (persisted in localStorage)
@@ -216,6 +231,17 @@
 		setTimeout(() => {
 			syncSectionDimensions();
 		}, 500);
+	});
+
+	// Re-measure sections when word wrap changes (line heights change with wrapping)
+	$effect(() => {
+		// Access wordWrap to create dependency
+		const _wordWrap = appState.wordWrap;
+		
+		// Delay measurement to allow editor to update its layout
+		setTimeout(() => {
+			syncSectionDimensions();
+		}, 100);
 	});
 
 	// Track which pane initiated the scroll to prevent feedback loops
@@ -305,9 +331,13 @@
 		const editorMaxScroll = editorDims.scrollHeight - editorDims.clientHeight;
 		const { sections } = mapping;
 		
-		// Edge cases
+		// Edge cases - handle zero or very small scroll ranges
 		if (editorMaxScroll <= 1) return 0;
 		if (previewMaxScroll <= 1) return 0;
+		
+		// Quick path for start and end
+		if (editorScrollTop <= 0) return 0;
+		if (editorScrollTop >= editorMaxScroll - 1) return previewMaxScroll;
 		
 		// Find which section we're currently in based on scroll position
 		// A section is "at viewport top" when scrollTop >= section.startOffset
@@ -325,33 +355,41 @@
 		
 		// Calculate how far we are within the current section (0 to 1)
 		let posInSection = 0;
+		const sectionStart = currentSection.editorDimension.startOffset;
+		
 		if (nextSection) {
-			const sectionStart = currentSection.editorDimension.startOffset;
 			const sectionEnd = nextSection.editorDimension.startOffset;
 			const sectionRange = sectionEnd - sectionStart;
 			if (sectionRange > 0) {
 				posInSection = Math.max(0, Math.min(1, (editorScrollTop - sectionStart) / sectionRange));
 			}
 		} else {
-			// Last section - interpolate to end
-			const sectionStart = currentSection.editorDimension.startOffset;
-			const sectionEnd = editorMaxScroll;
-			const sectionRange = sectionEnd - sectionStart;
-			if (sectionRange > 0) {
-				posInSection = Math.max(0, Math.min(1, (editorScrollTop - sectionStart) / sectionRange));
+			// Last section - interpolate to document end (editorMaxScroll)
+			// Use the actual section height or distance to max scroll, whichever is larger
+			const sectionHeight = currentSection.editorDimension.height;
+			const distanceToEnd = editorMaxScroll - sectionStart;
+			const effectiveRange = Math.max(sectionHeight, distanceToEnd);
+			
+			if (effectiveRange > 0) {
+				posInSection = Math.max(0, Math.min(1, (editorScrollTop - sectionStart) / effectiveRange));
 			}
 		}
 		
 		// Map to preview: find corresponding position
 		const previewSectionStart = currentSection.previewDimension.startOffset;
-		let previewSectionEnd: number;
-		if (nextSection) {
-			previewSectionEnd = nextSection.previewDimension.startOffset;
-		} else {
-			previewSectionEnd = previewMaxScroll;
-		}
+		let previewScrollTop: number;
 		
-		const previewScrollTop = previewSectionStart + (previewSectionEnd - previewSectionStart) * posInSection;
+		if (nextSection) {
+			const previewSectionEnd = nextSection.previewDimension.startOffset;
+			previewScrollTop = previewSectionStart + (previewSectionEnd - previewSectionStart) * posInSection;
+		} else {
+			// Last section - map to document end
+			const sectionHeight = currentSection.previewDimension.height;
+			const distanceToEnd = previewMaxScroll - previewSectionStart;
+			const effectiveRange = Math.max(sectionHeight, distanceToEnd);
+			
+			previewScrollTop = previewSectionStart + effectiveRange * posInSection;
+		}
 		
 		return Math.min(Math.max(0, previewScrollTop), previewMaxScroll);
 	}
@@ -369,9 +407,13 @@
 		const previewMaxScroll = previewDims.scrollHeight - previewDims.clientHeight;
 		const { sections } = mapping;
 		
-		// Edge cases
+		// Edge cases - handle zero or very small scroll ranges
 		if (previewMaxScroll <= 1) return 0;
 		if (editorMaxScroll <= 1) return 0;
+		
+		// Quick path for start and end
+		if (previewScrollTop <= 0) return 0;
+		if (previewScrollTop >= previewMaxScroll - 1) return editorMaxScroll;
 		
 		// Find which section we're currently in based on scroll position
 		let currentSectionIdx = 0;
@@ -388,33 +430,41 @@
 		
 		// Calculate how far we are within the current section (0 to 1)
 		let posInSection = 0;
+		const sectionStart = currentSection.previewDimension.startOffset;
+		
 		if (nextSection) {
-			const sectionStart = currentSection.previewDimension.startOffset;
 			const sectionEnd = nextSection.previewDimension.startOffset;
 			const sectionRange = sectionEnd - sectionStart;
 			if (sectionRange > 0) {
 				posInSection = Math.max(0, Math.min(1, (previewScrollTop - sectionStart) / sectionRange));
 			}
 		} else {
-			// Last section - interpolate to end
-			const sectionStart = currentSection.previewDimension.startOffset;
-			const sectionEnd = previewMaxScroll;
-			const sectionRange = sectionEnd - sectionStart;
-			if (sectionRange > 0) {
-				posInSection = Math.max(0, Math.min(1, (previewScrollTop - sectionStart) / sectionRange));
+			// Last section - interpolate to document end (previewMaxScroll)
+			// Use the actual section height or distance to max scroll, whichever is larger
+			const sectionHeight = currentSection.previewDimension.height;
+			const distanceToEnd = previewMaxScroll - sectionStart;
+			const effectiveRange = Math.max(sectionHeight, distanceToEnd);
+			
+			if (effectiveRange > 0) {
+				posInSection = Math.max(0, Math.min(1, (previewScrollTop - sectionStart) / effectiveRange));
 			}
 		}
 		
 		// Map to editor: find corresponding position
 		const editorSectionStart = currentSection.editorDimension.startOffset;
-		let editorSectionEnd: number;
-		if (nextSection) {
-			editorSectionEnd = nextSection.editorDimension.startOffset;
-		} else {
-			editorSectionEnd = editorMaxScroll;
-		}
+		let editorScrollTop: number;
 		
-		const editorScrollTop = editorSectionStart + (editorSectionEnd - editorSectionStart) * posInSection;
+		if (nextSection) {
+			const editorSectionEnd = nextSection.editorDimension.startOffset;
+			editorScrollTop = editorSectionStart + (editorSectionEnd - editorSectionStart) * posInSection;
+		} else {
+			// Last section - map to document end
+			const sectionHeight = currentSection.editorDimension.height;
+			const distanceToEnd = editorMaxScroll - editorSectionStart;
+			const effectiveRange = Math.max(sectionHeight, distanceToEnd);
+			
+			editorScrollTop = editorSectionStart + effectiveRange * posInSection;
+		}
 		
 		return Math.min(Math.max(0, editorScrollTop), editorMaxScroll);
 	}
@@ -700,12 +750,20 @@
 	// Handle mouse up to stop resizing
 	function handleResizeEnd() {
 		if (isResizingSidebar || isResizingEditor || isResizingTOC) {
+			const wasResizingEditor = isResizingEditor;
 			isResizingSidebar = false;
 			isResizingEditor = false;
 			isResizingTOC = false;
 			document.body.style.cursor = '';
 			document.body.style.userSelect = '';
 			saveLayoutState();
+			
+			// Re-measure sections after editor pane resize (affects wrapped text)
+			if (wasResizingEditor) {
+				setTimeout(() => {
+					syncSectionDimensions();
+				}, 100);
+			}
 		}
 	}
 </script>
