@@ -16,7 +16,7 @@ Your notes never leave your device. No accounts. No tracking. No cloud.
 
 ---
 
-![SvelteMark Screenshot](images/Screenshot.webp)  
+![SvelteMark Screenshot](images/screenshot.webp)  
 
 <!-- TODO: Add actual screenshot -->
 
@@ -49,22 +49,22 @@ Your notes never leave your device. No accounts. No tracking. No cloud.
 
 ### Editor with Live Preview
 
-![SvelteMark Editor Screenshot](images/Screenshot.webp)
+![SvelteMark Editor Screenshot](images/screenshot.webp)
 _Split-view editor with live markdown preview, file explorer on the left_
 
 ### Markdown Preview with GitHub Styling
 
-![Preview Mode](images/Preview.webp)
+![Preview Mode](images/preview.webp)
 _Beautiful rendered markdown with GitHub-style formatting_
 
 ### File Explorer & Organization
 
-![File Tree](images/Filetree.webp)
+![File Tree](images/filetree.webp)
 _Hierarchical file and folder organization with drag-and-drop support_
 
 ### Formatting Toolbar & Context Menu
 
-![Formatting Tools](images/Toolbar.webp)
+![Formatting Tools](images/toolbar.webp)
 _Comprehensive formatting options via toolbar and right-click context menu_
 
 ### Help & Keyboard Shortcuts
