@@ -442,10 +442,27 @@
 		if (event.dataTransfer) {
 			event.dataTransfer.dropEffect = 'move';
 		}
-
-		// Only folders can be drop targets
+		
+		// For folders: highlight the folder itself (item will go INTO the folder)
+		// For files: highlight the parent folder (item will go to SAME folder as the file)
 		if (item.type === 'folder') {
 			setDragOverItem(item);
+		} else {
+			// For files, we need to highlight the parent folder
+			// If the file is at root (parentFolderId from props), don't set dragOverItem
+			// The Sidebar will handle root highlighting
+			if (item.parentId !== null) {
+				// Find the parent folder and set it as drag over target
+				setDragOverItem({ 
+					type: 'folder', 
+					id: item.parentId, 
+					name: '', 
+					parentId: null 
+				});
+			} else {
+				// File is at root level - clear dragOverItem, let Sidebar handle it
+				setDragOverItem(null);
+			}
 		}
 	}
 
@@ -470,24 +487,33 @@
 			const draggedData = JSON.parse(data);
 			const draggedType = draggedData.type as 'file' | 'folder';
 			const draggedId = draggedData.id as number;
-
-			// Can only drop onto folders
-			if (targetItem.type !== 'folder') return;
-
-			// Don't drop on itself
-			if (draggedType === 'folder' && draggedId === targetItem.id) return;
-
-			// Don't drop if already in this folder
-			if (draggedData.parentId === targetItem.id) return;
-
-			if (draggedType === 'file') {
-				await appState.moveFileToFolder(draggedId, targetItem.id);
+			
+			// Determine the target folder:
+			// - If dropping on a folder, move into that folder
+			// - If dropping on a file, move to the same folder as that file (like VS Code)
+			let targetFolderId: number | null;
+			
+			if (targetItem.type === 'folder') {
+				targetFolderId = targetItem.id;
+				
+				// Don't drop folder on itself
+				if (draggedType === 'folder' && draggedId === targetFolderId) return;
 			} else {
-				await appState.moveFolderToParent(draggedId, targetItem.id);
+				// Dropping on a file - use the file's parent folder
+				targetFolderId = targetItem.parentId;
 			}
 
-			// Open the target folder to show the moved item
-			if (!targetItem.isOpen) {
+			// Don't drop if already in this folder
+			if (draggedData.parentId === targetFolderId) return;
+
+			if (draggedType === 'file') {
+				await appState.moveFileToFolder(draggedId, targetFolderId);
+			} else {
+				await appState.moveFolderToParent(draggedId, targetFolderId);
+			}
+
+			// Open the target folder to show the moved item (only if it's a folder)
+			if (targetItem.type === 'folder' && !targetItem.isOpen) {
 				await appState.toggleFolder(targetItem.id);
 			}
 		} catch (error) {
@@ -545,13 +571,15 @@
 	{/if}
 	
 	{#each items as item (`${item.type}-${item.id}`)}
-		<li class="tree-item">
+		<li 
+			class="tree-item"
+			class:drag-over-container={item.type === 'folder' && dragOverItem?.id === item.id && dragOverItem?.type === 'folder'}
+		>
 			<button
 				class="tree-button"
 				class:active={item.type === 'file' && item.id === appState.activeFileId}
 				class:folder={item.type === 'folder'}
 				class:file={item.type === 'file'}
-				class:drag-over={dragOverItem?.id === item.id && item.type === 'folder'}
 				draggable="true"
 				onclick={() => handleFileClick(item)}
 				onkeydown={(e) => handleKeydown(e, item)}
@@ -764,6 +792,13 @@
 		margin: 0;
 	}
 
+	.tree-item.drag-over-container {
+		background: #1f6feb33;
+		border-radius: 4px;
+		outline: 1px solid #58a6ff;
+		outline-offset: -1px;
+	}
+
 	.tree-button {
 		display: flex;
 		align-items: center;
@@ -788,12 +823,6 @@
 	.tree-button.active {
 		background: #1f6feb;
 		color: #ffffff;
-	}
-
-	.tree-button.drag-over {
-		background: #1a3a5c;
-		outline: 2px dashed #58a6ff;
-		outline-offset: -2px;
 	}
 
 	:global(.tree-button.dragging) {

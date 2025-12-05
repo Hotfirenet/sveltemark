@@ -20,34 +20,65 @@
 
 	// Handle dropping items to root level
 	function handleRootDragOver(event: DragEvent) {
-		// Only handle if dropping directly on the container, not on a tree item
 		const target = event.target as HTMLElement;
-		if (target.classList.contains('file-tree-container') || target.classList.contains('root-drop-zone')) {
+		const treeButton = target.closest('.tree-button');
+		
+		if (!treeButton) {
+			// Not over a tree item - show root highlight
 			event.preventDefault();
-			event.stopPropagation();
 			if (event.dataTransfer) {
 				event.dataTransfer.dropEffect = 'move';
 			}
 			isDragOverRoot = true;
+		} else {
+			// Check if over a file that's at root level (no parent folder class)
+			// Files at root should trigger root highlight
+			const isFile = treeButton.classList.contains('file');
+			const isInNestedFolder = treeButton.closest('.file-tree .file-tree'); // nested file-tree means inside a folder
+			
+			if (isFile && !isInNestedFolder) {
+				// File is at root level - show root highlight
+				event.preventDefault();
+				if (event.dataTransfer) {
+					event.dataTransfer.dropEffect = 'move';
+				}
+				isDragOverRoot = true;
+			} else {
+				isDragOverRoot = false;
+			}
 		}
 	}
 
 	function handleRootDragLeave(event: DragEvent) {
-		const target = event.target as HTMLElement;
-		if (target.classList.contains('file-tree-container') || target.classList.contains('root-drop-zone')) {
+		// Check if we're leaving the container entirely
+		const relatedTarget = event.relatedTarget as HTMLElement;
+		const container = event.currentTarget as HTMLElement;
+		
+		if (!relatedTarget || !container.contains(relatedTarget)) {
 			isDragOverRoot = false;
 		}
 	}
+	
+	function handleDragEnd() {
+		// Always clear the root highlight when drag ends
+		isDragOverRoot = false;
+	}
 
 	async function handleRootDrop(event: DragEvent) {
+		// Always clear the highlight first
+		isDragOverRoot = false;
+		
+		// Check if we're NOT over a tree-button (file/folder item)
 		const target = event.target as HTMLElement;
-		if (!target.classList.contains('file-tree-container') && !target.classList.contains('root-drop-zone')) {
+		const isOverTreeItem = target.closest('.tree-button');
+		
+		if (isOverTreeItem) {
+			// Let the tree item handle it
 			return;
 		}
 
 		event.preventDefault();
 		event.stopPropagation();
-		isDragOverRoot = false;
 
 		const data = event.dataTransfer?.getData('text/plain');
 		if (!data) return;
@@ -102,6 +133,7 @@
 		class:drag-over-root={isDragOverRoot}
 		ondragover={handleRootDragOver}
 		ondragleave={handleRootDragLeave}
+		ondragend={handleDragEnd}
 		ondrop={handleRootDrop}
 	>
 		<div class="scrollable-content">
@@ -208,11 +240,13 @@
 		overflow-y: auto;
 		overflow-x: hidden;
 		padding: 8px;
-		transition: background-color 0.15s;
+		transition: all 0.15s;
 	}
 
 	.file-tree-container.drag-over-root .scrollable-content {
-		background: #1a3a5c;
+		background: #21262d;
+		outline: 1px solid #58a6ff;
+		outline-offset: -1px;
 	}
 
 	.empty-state {
@@ -241,8 +275,8 @@
 		left: 8px;
 		right: 8px;
 		padding: 12px;
-		background: #1a3a5c;
-		border: 2px dashed #58a6ff;
+		background: #30363d;
+		border: 1px solid #58a6ff;
 		border-radius: 6px;
 		color: #58a6ff;
 		font-size: 12px;

@@ -805,6 +805,36 @@
 			}
 		}
 	}
+
+	// Import backup from empty state
+	let emptyStateFileInput = $state<HTMLInputElement | null>(null);
+	
+	function handleEmptyStateImportClick() {
+		emptyStateFileInput?.click();
+	}
+	
+	async function handleEmptyStateImportFile(event: Event) {
+		const target = event.target as HTMLInputElement;
+		const file = target.files?.[0];
+		if (!file) return;
+
+		const reader = new FileReader();
+		reader.onload = async (e) => {
+			try {
+				const content = e.target?.result as string;
+				await appState.importBackup(content);
+				alert('Backup imported successfully!');
+			} catch (err) {
+				alert('Failed to import backup: ' + (err as Error).message);
+			}
+		};
+		reader.readAsText(file);
+		target.value = '';
+	}
+	
+	async function handleEmptyStateNewFile() {
+		await appState.newFile(null, 'Untitled');
+	}
 </script>
 
 <svelte:window 
@@ -1006,10 +1036,34 @@
 		{:else}
 			<div class="empty-state">
 				<div class="empty-content">
-					<h2>SvelteMark</h2>
-					<p>Select a file from the sidebar to start editing</p>
-					<p class="hint">Or create a new file using the + button</p>
+					<svg viewBox="0 0 24 24" fill="currentColor" width="64" height="64" class="empty-icon">
+						<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+					</svg>
+					<h2>Welcome to SvelteMark</h2>
+					<p>A beautiful markdown editor with live preview</p>
+					<div class="empty-actions">
+						<button class="empty-btn primary" onclick={handleEmptyStateNewFile}>
+							<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+								<path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+							</svg>
+							New File
+						</button>
+						<button class="empty-btn secondary" onclick={handleEmptyStateImportClick}>
+							<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+								<path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/>
+							</svg>
+							Import Backup
+						</button>
+					</div>
+					<p class="hint">Or select a file from the sidebar</p>
 				</div>
+				<input 
+					type="file" 
+					accept=".json" 
+					bind:this={emptyStateFileInput}
+					onchange={handleEmptyStateImportFile}
+					style="display: none;"
+				/>
 			</div>
 		{/if}
 	</main>
@@ -1597,10 +1651,15 @@
 		text-align: center;
 	}
 
+	.empty-icon {
+		color: #30363d;
+		margin-bottom: 16px;
+	}
+
 	.empty-content h2 {
 		font-size: 24px;
 		font-weight: 400;
-		margin-bottom: 16px;
+		margin-bottom: 8px;
 		color: #c9d1d9;
 	}
 
@@ -1611,5 +1670,49 @@
 
 	.empty-content .hint {
 		font-size: 12px;
+		margin-top: 16px;
+	}
+
+	.empty-actions {
+		display: flex;
+		gap: 12px;
+		justify-content: center;
+		margin-top: 24px;
+	}
+
+	.empty-btn {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 20px;
+		border-radius: 6px;
+		font-size: 14px;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.15s;
+		border: 1px solid transparent;
+	}
+
+	.empty-btn.primary {
+		background: #238636;
+		color: #ffffff;
+		border-color: #238636;
+	}
+
+	.empty-btn.primary:hover {
+		background: #2ea043;
+		border-color: #2ea043;
+	}
+
+	.empty-btn.secondary {
+		background: #21262d;
+		color: #c9d1d9;
+		border-color: #30363d;
+	}
+
+	.empty-btn.secondary:hover {
+		background: #30363d;
+		border-color: #58a6ff;
+		color: #58a6ff;
 	}
 </style>

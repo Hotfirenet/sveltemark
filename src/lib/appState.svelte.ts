@@ -399,19 +399,31 @@ async function importBackup(jsonString: string): Promise<void> {
     }
 
     // Import folders first (maintaining hierarchy)
+    // Sort folders to ensure parents are created before children
+    const sortedFolders = [...backup.folders].sort((a, b) => {
+        // Root folders (parentId === null) come first
+        if (a.parentId === null && b.parentId !== null) return -1;
+        if (a.parentId !== null && b.parentId === null) return 1;
+        return 0;
+    });
+    
     const folderIdMap: Record<number, number> = {};
-    for (const folder of backup.folders) {
+    for (const folder of sortedFolders) {
         const oldId = folder.id;
-        const newId = await createFolder(folder.name, folder.parentId ? folderIdMap[folder.parentId] || null : null);
+        const newParentId = folder.parentId !== null ? folderIdMap[folder.parentId] ?? null : null;
+        const newId = await createFolder(folder.name, newParentId);
         folderIdMap[oldId] = newId;
+        
+        // Preserve folder open/closed state
+        if (folder.isOpen === false) {
+            await toggleFolderOpen(newId);
+        }
     }
 
-    // Import files
+    // Import files (including root-level files where folderId is null)
     for (const file of backup.files) {
-        const newFolderId = folderIdMap[file.folderId];
-        if (newFolderId) {
-            await createFile(newFolderId, file.title, file.content);
-        }
+        const newFolderId = file.folderId !== null ? folderIdMap[file.folderId] ?? null : null;
+        await createFile(newFolderId, file.title, file.content);
     }
 
     // Refresh and reset state
@@ -419,6 +431,11 @@ async function importBackup(jsonString: string): Promise<void> {
     activeFileId = null;
     buffer = '';
     dirty = false;
+    
+    // Select first file if available
+    if (files.length > 0) {
+        await selectFile(files[0].id!);
+    }
 }
 
 // Print current file
