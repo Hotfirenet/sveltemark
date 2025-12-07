@@ -390,15 +390,11 @@ async function importBackup(jsonString: string): Promise<void> {
         throw new Error('Invalid backup format');
     }
 
-    // Clear existing data
-    for (const file of files) {
-        if (file.id) await deleteFile(file.id);
-    }
-    for (const folder of folders) {
-        if (folder.id) await deleteFolder(folder.id);
-    }
+    // Create a root folder for the backup (e.g., "Backup - 2025-12-07")
+    const backupFolderName = `Backup - ${new Date().toISOString().split('T')[0]}`;
+    const backupRootFolderId = await createFolder(backupFolderName, null);
 
-    // Import folders first (maintaining hierarchy)
+    // Import folders first (maintaining hierarchy within backup folder)
     // Sort folders to ensure parents are created before children
     const sortedFolders = [...backup.folders].sort((a, b) => {
         // Root folders (parentId === null) come first
@@ -410,7 +406,12 @@ async function importBackup(jsonString: string): Promise<void> {
     const folderIdMap: Record<number, number> = {};
     for (const folder of sortedFolders) {
         const oldId = folder.id;
-        const newParentId = folder.parentId !== null ? folderIdMap[folder.parentId] ?? null : null;
+        // If original folder was root (parentId === null), make it child of backup folder
+        // Otherwise, use the mapped parent ID
+        const newParentId = folder.parentId !== null
+            ? folderIdMap[folder.parentId] ?? null
+            : backupRootFolderId;
+
         const newId = await createFolder(folder.name, newParentId);
         folderIdMap[oldId] = newId;
 
@@ -422,7 +423,12 @@ async function importBackup(jsonString: string): Promise<void> {
 
     // Import files (including root-level files where folderId is null)
     for (const file of backup.files) {
-        const newFolderId = file.folderId !== null ? folderIdMap[file.folderId] ?? null : null;
+        // If original file was root-level (folderId === null), place in backup folder
+        // Otherwise, use the mapped folder ID
+        const newFolderId = file.folderId !== null
+            ? folderIdMap[file.folderId] ?? null
+            : backupRootFolderId;
+
         await createFile(newFolderId, file.title, file.content);
     }
 
