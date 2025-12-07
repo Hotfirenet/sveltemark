@@ -239,7 +239,7 @@
 		flex: 1;
 		overflow-y: auto;
 		overflow-x: hidden;
-		padding: 8px;
+		padding: 4px 0;
 		transition: all 0.15s;
 	}
 

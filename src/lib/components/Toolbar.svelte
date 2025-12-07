@@ -444,7 +444,7 @@
 		display: flex;
 		align-items: center;
 		gap: 4px;
-		padding: 6px 12px;
+		padding: 8px 12px;
 		background: #161b22;
 		flex: 1;
 		min-width: 0;
@@ -469,7 +469,7 @@
 		width: 1px;
 		height: 20px;
 		background: #30363d;
-		margin: 0 6px;
+		margin: 0 8px;
 		flex-shrink: 0;
 	}
 

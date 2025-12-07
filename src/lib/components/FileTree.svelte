@@ -885,7 +885,6 @@
 		list-style: none;
 		padding: 0;
 		margin: 0;
-		padding-left: calc(var(--depth) * 12px);
 		background: transparent;
 		width: 100%;
 		min-height: 0;
@@ -893,11 +892,37 @@
 
 	.tree-item {
 		margin: 0;
+		line-height: 1.4;
+		position: relative;
+	}
+
+	/* Tree lines for nested items */
+	.file-tree .file-tree .tree-item::before {
+		content: '';
+		position: absolute;
+		left: calc(var(--depth) * 16px + 8px - 8px);
+		top: 0;
+		bottom: 0;
+		width: 1px;
+		background: #30363d;
+		opacity: 0.5;
+	}
+
+	/* Horizontal line from parent to item */
+	.file-tree .file-tree .tree-item:first-child::after {
+		content: '';
+		position: absolute;
+		left: calc(var(--depth) * 16px + 8px - 8px);
+		top: calc(1.4em / 2);
+		width: 8px;
+		height: 1px;
+		background: #30363d;
+		opacity: 0.5;
 	}
 
 	.tree-item.drag-over-container {
-		background: #1f6feb33;
-		border-radius: 4px;
+		background: #1f6feb1a;
+		border-radius: 2px;
 		outline: 1px solid #58a6ff;
 		outline-offset: -1px;
 	}
@@ -907,7 +932,8 @@
 		align-items: center;
 		gap: 6px;
 		width: 100%;
-		padding: 4px 8px;
+		padding: 6px 8px;
+		padding-left: calc(6px + var(--depth) * 16px);
 		border: none;
 		background: transparent;
 		color: #c9d1d9;
@@ -915,17 +941,21 @@
 		font-family: inherit;
 		text-align: left;
 		cursor: pointer;
-		border-radius: 4px;
+		border-radius: 2px;
 		transition: background-color 0.15s;
+		border-left: 3px solid transparent;
+		margin-left: -3px;
 	}
 
 	.tree-button:hover {
 		background: #21262d;
+		color: #e6edf3;
 	}
 
 	.tree-button.active {
-		background: #1f6feb;
-		color: #ffffff;
+		background: #1f6feb1a;
+		color: #58a6ff;
+		border-left-color: #58a6ff;
 	}
 
 	:global(.tree-button.dragging) {
@@ -996,7 +1026,7 @@
 	}
 
 	.tree-item.creating {
-		margin: 2px 0;
+		margin: 0;
 	}
 
 	.root-context-trigger {
