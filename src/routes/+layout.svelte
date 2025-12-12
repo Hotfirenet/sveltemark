@@ -30,9 +30,9 @@
 
 	// SEO Configuration
 	const siteConfig = {
-		title: 'SvelteMark - AI Markdown Editor | Privacy-First',
+		title: 'Offline in Browser Markdown Viewer & Renderer | SvelteMark',
 		description:
-			'Privacy-first markdown editor for ChatGPT, Claude, and Gemini content. Mermaid diagrams, math equations, syntax highlighting. Works offline.',
+			'Flawlessly render markdown from ChatGPT and Other AI models. Supports Mermaid diagrams, math equations, and syntax highlighting. 100% private, offline & free.',
 		url: 'https://sm.fana.my.id',
 		siteName: 'SvelteMark',
 		locale: 'en_US',
@@ -74,7 +74,7 @@
 	<meta name="revisit-after" content="7 days" />
 
 	<!-- Favicon -->
-	<link rel="icon" href="/favicon.ico" type="image/x-icon" />
+	<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 	<link rel="apple-touch-icon" href="/logo.webp" />
 	<link rel="manifest" href="/manifest.json" />
 
