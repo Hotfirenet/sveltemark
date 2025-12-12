@@ -15,7 +15,7 @@
 	"iarc_rating_id": "",
 	"icons": [
 		{
-			"src": "/favicon.svg",
+			"src": "/favicon.ico",
 			"sizes": "any",
 			"type": "image/svg+xml",
 			"purpose": "any"
@@ -65,7 +65,7 @@
 			"url": "/app",
 			"icons": [
 				{
-					"src": "/favicon.svg",
+					"src": "/favicon.ico",
 					"sizes": "96x96"
 				}
 			]
