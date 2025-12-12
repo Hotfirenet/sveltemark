@@ -188,10 +188,10 @@
 </script>
 
 <svelte:head>
-	<title>SvelteMark - Markdown Editor for AI Content | Privacy-First & Offline</title>
+	<title>SvelteMark - AI Markdown Editor | Privacy-First</title>
 	<meta
 		name="description"
-		content="Privacy-first markdown editor for viewing and editing AI-generated content from ChatGPT, Claude, Gemini, and more. Render Mermaid diagrams, math equations (KaTeX/LaTeX), and code with syntax highlighting. Works offline, no cloud, 100% local."
+		content="Privacy-first markdown editor for ChatGPT, Claude, and Gemini content. Mermaid diagrams, math equations, syntax highlighting. Works offline."
 	/>
 	<meta
 		name="keywords"
